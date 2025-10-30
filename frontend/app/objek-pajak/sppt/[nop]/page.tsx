@@ -87,7 +87,6 @@ export default function Page() {
   const [yearsLoading, setYearsLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
-  const [downloadType, setDownloadType] = useState<'pdf' | 'image'>('pdf');
   const [printMode, setPrintMode] = useState<'summary' | 'detail' | null>(null);
   const [selectedYearData, setSelectedYearData] = useState<YearSummaryData | null>(
     null
@@ -141,10 +140,9 @@ export default function Page() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Mobile download function
-  const handleDownloadPdf = async (year?: string, type: 'pdf' | 'image' = 'pdf') => {
+  // Mobile download function - simplified for mobile only (image format)
+  const handleDownloadPdf = async (year?: string) => {
     setDownloadingPdf(year || 'summary');
-    setDownloadType(type);
     try {
       const yearData = year ? yearSummaries.find(y => y.THN_PAJAK_SPPT === year) :
         yearSummaries.filter(y => !y.loading && !y.error)
@@ -169,67 +167,178 @@ export default function Page() {
         mobile: isMobile ? 'true' : 'false',
       });
 
-      const apiEndpoint = type === 'image' ? '/api/sppt/image' : '/api/sppt';
-      const fileExtension = type === 'image' ? 'png' : 'pdf';
-      const fileName = type === 'image' ? 'SPPT-Image' : 'SPPT';
-
       if (isMobile) {
-        // Mobile: Use temporary file approach
-        const response = await fetch(`${apiEndpoint}?${params.toString()}`);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`${type.toUpperCase()} generation failed:`, errorText);
-          throw new Error(`Failed to generate ${type.toUpperCase()}: ${response.status}`);
+        // Mobile: Always use image format - generate client-side HTML
+        const formatCurrency = (amount: string) => {
+          const num = parseInt(amount) || 0
+          return new Intl.NumberFormat("id-ID", {
+            style: "currency",
+            currency: "IDR",
+            minimumFractionDigits: 0,
+          }).format(num)
         }
 
-        const result = await response.json();
+        const htmlContent = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>SPPT - ${year || yearData?.THN_PAJAK_SPPT}</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: Arial, sans-serif;
+                background: white;
+                color: black;
+                padding: 20px;
+                max-width: 100%;
+                margin: 0 auto;
+              }
+              .header { text-align: center; margin-bottom: 30px; }
+              .title { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
+              .subtitle { font-size: 14px; font-weight: bold; margin-bottom: 5px; }
+              .section { margin-bottom: 20px; }
+              .section-title { font-size: 13px; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
+              .row { display: flex; margin-bottom: 6px; font-size: 11px; }
+              .label { font-weight: bold; width: 100px; flex-shrink: 0; }
+              .value { flex: 1; word-break: break-word; }
+              .amount { font-weight: bold; font-size: 13px; color: #d32f2f; }
+              .footer { font-size: 9px; margin-top: 30px; text-align: center; color: #666; }
+              .status-lunas { color: #2e7d32; font-weight: bold; }
+              .status-belum { color: #d32f2f; font-weight: bold; }
+              @media print { body { padding: 10px; } }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="title">SURAT PEMBERITAHUAN PAJAK TERHUTANG</div>
+              <div class="subtitle">PAJAK BUMI DAN BANGUNAN</div>
+              <div class="subtitle">TAHUN PAJAK ${year || yearData?.THN_PAJAK_SPPT}</div>
+            </div>
 
-        if (result.success && result.downloadUrl) {
-          // For mobile: redirect to download URL
-          window.location.href = result.downloadUrl;
-        } else {
-          throw new Error('Failed to get download URL');
-        }
-      } else {
-        // Desktop: direct download
-        const url = `${apiEndpoint}?${params.toString()}`;
-        const response = await fetch(url);
+            <div class="section">
+              <div class="row">
+                <div class="label">NOP:</div>
+                <div class="value">${nop}</div>
+              </div>
+            </div>
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`${type.toUpperCase()} generation failed:`, errorText);
-          throw new Error(`Failed to generate ${type.toUpperCase()}: ${response.status}`);
-        }
+            <div class="section">
+              <div class="section-title">DATA WAJIB PAJAK</div>
+              <div class="row">
+                <div class="label">Nama:</div>
+                <div class="value">${objectInfo?.nama_wajib_pajak || yearData?.NM_WP_SPPT || ''}</div>
+              </div>
+              <div class="row">
+                <div class="label">Alamat:</div>
+                <div class="value">${objectInfo?.alamat_wajib_pajak || ''}</div>
+              </div>
+            </div>
 
-        const blob = await response.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
+            <div class="section">
+              <div class="section-title">DATA OBJEK PAJAK</div>
+              <div class="row">
+                <div class="label">Luas Bumi:</div>
+                <div class="value">${objectInfo?.luas_bumi || yearData?.LUAS_BUMI_SPPT || 0} m²</div>
+              </div>
+              <div class="row">
+                <div class="label">Luas Bangunan:</div>
+                <div class="value">${objectInfo?.luas_bangunan || yearData?.LUAS_BNG_SPPT || 0} m²</div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">PERHITUNGAN PAJAK</div>
+              <div class="row">
+                <div class="label">NJOP Bumi:</div>
+                <div class="value">${formatCurrency(String(objectInfo?.njop_bumi || yearData?.NJOP_BUMI_SPPT || 0))}</div>
+              </div>
+              <div class="row">
+                <div class="label">NJOP Bangunan:</div>
+                <div class="value">${formatCurrency(String(objectInfo?.njop_bangunan || yearData?.NJOP_BNG_SPPT || 0))}</div>
+              </div>
+              <div class="row">
+                <div class="label">PBB Harus Dibayar:</div>
+                <div class="value amount">${formatCurrency(String(yearData?.PBB_YG_HARUS_DIBAYAR_SPPT || '0'))}</div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">INFORMASI PEMBAYARAN</div>
+              <div class="row">
+                <div class="label">Status:</div>
+                <div class="value ${yearData?.STATUS_PEMBAYARAN_SPPT ? 'status-lunas' : 'status-belum'}">
+                  ${yearData?.STATUS_PEMBAYARAN_SPPT ? 'LUNAS' : 'BELUM LUNAS'}
+                </div>
+              </div>
+              <div class="row">
+                <div class="label">Jatuh Tempo:</div>
+                <div class="value">${yearData?.TGL_JATUH_TEMPO_SPPT || ''}</div>
+              </div>
+            </div>
+
+            <div class="footer">
+              Dicetak pada: ${new Date().toLocaleString('id-ID')}
+            </div>
+          </body>
+          </html>
+        `;
+
+        // Create blob and download directly
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
-        a.href = downloadUrl;
-        a.download = `${fileName}-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.${fileExtension}`;
+        a.href = url;
+        a.download = `SPPT-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.html`;
         document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(downloadUrl);
+        window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-      }
-    } catch (error) {
-      console.error(`Error downloading ${downloadType}:`, error);
 
-      // Show more specific error message
-      const formatName = downloadType === 'image' ? 'Gambar' : 'PDF';
-      let errorMessage = `Gagal mengunduh ${formatName}. Silakan coba lagi.`;
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          errorMessage = 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
-        } else if (error.message.includes('500')) {
-          errorMessage = 'Terjadi kesalahan di server. Silakan coba lagi nanti.';
-        } else if (error.message.includes('Failed to get download URL')) {
-          errorMessage = 'Gagal membuat link unduhan. Silakan coba lagi.';
+        // Show success message
+        alert('SPPT berhasil diunduh sebagai file HTML. Anda dapat membukanya di browser untuk melihat atau menyimpan sebagai gambar.');
+      } else {
+        // Desktop: Try PDF first, fallback to HTML if fails
+        try {
+          const url = `/api/sppt?${params.toString()}`;
+          const response = await fetch(url);
+
+          if (!response.ok) {
+            throw new Error('PDF API not available');
+          }
+
+          const blob = await response.blob();
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = downloadUrl;
+          a.download = `SPPT-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(downloadUrl);
+          document.body.removeChild(a);
+        } catch (pdfError) {
+          console.log('PDF failed, using HTML fallback:', pdfError);
+          // Fallback to HTML
+          const response = await fetch(`/api/sppt/image?${params.toString()}`);
+          const htmlContent = await response.text();
+          const blob = new Blob([htmlContent], { type: 'text/html' });
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = downloadUrl;
+          a.download = `SPPT-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.html`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(downloadUrl);
+          document.body.removeChild(a);
         }
       }
-
-      alert(errorMessage);
+    } catch (error) {
+      console.error('Error downloading:', error);
+      alert('Gagal mengunduh SPPT. Silakan coba lagi.');
     } finally {
       setDownloadingPdf(null);
     }
@@ -902,28 +1011,15 @@ export default function Page() {
                         </CardDescription>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 print:hidden">
-                      {isMobile && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setDownloadType(downloadType === 'pdf' ? 'image' : 'pdf')}
-                          className="flex items-center gap-1"
-                        >
-                          {downloadType === 'pdf' ? '🖼️' : '📄'}
-                          {downloadType === 'pdf' ? 'PDF' : 'Gambar'}
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        onClick={isMobile ? () => handleDownloadPdf(undefined, downloadType) : handlePrint}
-                        disabled={isMobile && downloadingPdf === 'summary'}
-                        className="flex items-center gap-2"
-                      >
-                        {isMobile ? <Download className="h-4 w-4" /> : <Printer className="h-4 w-4" />}
-                        {isMobile ? (downloadingPdf === 'summary' ? 'Mengunduh...' : `Unduh ${downloadType === 'pdf' ? 'PDF' : 'Gambar'}`) : 'Cetak'}
-                      </Button>
-                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={isMobile ? () => handleDownloadPdf() : handlePrint}
+                      disabled={isMobile && downloadingPdf === 'summary'}
+                      className="flex items-center gap-2 print:hidden"
+                    >
+                      {isMobile ? <Download className="h-4 w-4" /> : <Printer className="h-4 w-4" />}
+                      {isMobile ? (downloadingPdf === 'summary' ? 'Mengunduh...' : 'Unduh SPPT') : 'Cetak'}
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -1135,12 +1231,12 @@ export default function Page() {
                                       </TableCell>
                                       <TableCell>
                                         <Button
-                                          onClick={isMobile ? () => handleDownloadPdf(yearData.THN_PAJAK_SPPT, downloadType) : () => handlePrintSppt(yearData.THN_PAJAK_SPPT)}
+                                          onClick={isMobile ? () => handleDownloadPdf(yearData.THN_PAJAK_SPPT) : () => handlePrintSppt(yearData.THN_PAJAK_SPPT)}
                                           disabled={isMobile && downloadingPdf === yearData.THN_PAJAK_SPPT}
                                           className="print:hidden"
                                         >
                                           {isMobile ? <Download className="h-4 w-4" /> : <Printer className="h-4 w-4" />}
-                                          {isMobile ? (downloadingPdf === yearData.THN_PAJAK_SPPT ? 'Mengunduh...' : `Unduh ${downloadType === 'pdf' ? 'PDF' : 'Gambar'}`) : 'Cetak SPPT'}
+                                          {isMobile ? (downloadingPdf === yearData.THN_PAJAK_SPPT ? 'Mengunduh...' : 'Unduh SPPT') : 'Cetak SPPT'}
                                         </Button>
                                       </TableCell>
                                     </TableRow>
