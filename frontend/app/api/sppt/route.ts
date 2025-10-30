@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib"
+import { writeFile, mkdir } from "fs/promises"
+import { join } from "path"
+import { existsSync } from "fs"
 
 export async function GET(req: NextRequest) {
   try {
@@ -118,12 +121,38 @@ export async function GET(req: NextRequest) {
     // Save PDF
     const pdfBytes = await pdfDoc.save()
 
-    return new NextResponse(Buffer.from(pdfBytes), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename=sppt-${year}-${nop.replace(/\./g, "")}.pdf`,
-      },
-    })
+    // Check if mobile download is requested
+    const isMobile = searchParams.get("mobile") === "true";
+
+    if (isMobile) {
+      // Save to temporary file for mobile
+      const tempDir = join(process.cwd(), "temp");
+
+      // Create temp directory if it doesn't exist
+      if (!existsSync(tempDir)) {
+        await mkdir(tempDir, { recursive: true });
+      }
+
+      const filename = `sppt-${year}-${nop.replace(/\./g, "")}-${Date.now()}.pdf`;
+      const filePath = join(tempDir, filename);
+
+      await writeFile(filePath, pdfBytes);
+
+      // Return download URL instead of file content
+      return NextResponse.json({
+        success: true,
+        downloadUrl: `/api/sppt/download/${filename}`,
+        filename
+      });
+    } else {
+      // Return PDF directly for desktop
+      return new NextResponse(Buffer.from(pdfBytes), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename=sppt-${year}-${nop.replace(/\./g, "")}.pdf`,
+        },
+      });
+    }
   } catch (error) {
     console.error('PDF generation error:', error)
     return new NextResponse('Failed to generate PDF', {

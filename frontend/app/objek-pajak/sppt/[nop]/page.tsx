@@ -164,42 +164,32 @@ export default function Page() {
         pbb_harus_dibayar: String(yearData?.PBB_YG_HARUS_DIBAYAR_SPPT || '0'),
         status_pembayaran: yearData?.STATUS_PEMBAYARAN_SPPT ? 'LUNAS' : 'BELUM LUNAS',
         tgl_jatuh_tempo: yearData?.TGL_JATUH_TEMPO_SPPT || '',
+        mobile: isMobile ? 'true' : 'false', // Add mobile flag
       });
 
-      const url = `/api/sppt?${params.toString()}`;
-
       if (isMobile) {
-        // For Android Chrome: try iframe approach first
-        try {
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = url;
-          document.body.appendChild(iframe);
+        // Mobile: Use temporary file approach
+        const response = await fetch(`/api/sppt?${params.toString()}`);
 
-          // Remove iframe after some time
-          setTimeout(() => {
-            document.body.removeChild(iframe);
-          }, 5000);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('PDF generation failed:', errorText);
+          throw new Error(`Failed to generate PDF: ${response.status}`);
+        }
 
-        } catch (iframeError) {
-          console.error('Iframe approach failed:', iframeError);
+        const result = await response.json();
 
-          // Fallback 1: Direct window.location (same tab)
-          try {
-            window.location.href = url;
-          } catch (locationError) {
-            console.error('Window.location approach failed:', locationError);
-
-            // Fallback 2: window.open with same target
-            const newWindow = window.open(url, '_self');
-            if (!newWindow) {
-              throw new Error('All mobile download methods failed');
-            }
-          }
+        if (result.success && result.downloadUrl) {
+          // For mobile: redirect to download URL
+          window.location.href = result.downloadUrl;
+        } else {
+          throw new Error('Failed to get download URL');
         }
       } else {
-        // Desktop: fetch and download
+        // Desktop: direct download
+        const url = `/api/sppt?${params.toString()}`;
         const response = await fetch(url);
+
         if (!response.ok) {
           const errorText = await response.text();
           console.error('PDF generation failed:', errorText);
@@ -227,8 +217,8 @@ export default function Page() {
           errorMessage = 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
         } else if (error.message.includes('500')) {
           errorMessage = 'Terjadi kesalahan di server. Silakan coba lagi nanti.';
-        } else if (error.message.includes('All mobile download methods failed')) {
-          errorMessage = 'Browser tidak mendukung unduhan PDF. Silakan gunakan browser lain atau coba di desktop.';
+        } else if (error.message.includes('Failed to get download URL')) {
+          errorMessage = 'Gagal membuat link unduhan. Silakan coba lagi.';
         }
       }
 
