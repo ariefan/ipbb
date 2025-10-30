@@ -160,7 +160,14 @@ const data = {
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const navItems = getNavItems(user)
-  
+
+  // Create user data from actual user prop or fallback
+  const userData = user ? {
+    name: user.nama || "User",
+    email: user.email || "user@example.com",
+    avatar: "/avatars/user.jpg"
+  } : data.user
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -180,9 +187,9 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         {/* <NavDocuments items={data.documents} />
         <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
-      {/* <SidebarFooter>
-        <NavUser user={data.user} />
-      </SidebarFooter> */}
+      <SidebarFooter>
+        <NavUser user={userData} />
+      </SidebarFooter>
     </Sidebar>
   )
 }

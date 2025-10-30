@@ -36,8 +36,9 @@ export function SiteHeader({ title = "Document" }: SiteHeaderProps) {
         <h1 className="text-base font-medium">{title}</h1>
         <div className="ml-auto flex items-center gap-2">
           <ModeToggle />
-          <Button variant="ghost" size="sm" className="hidden sm:flex" onClick={logout}>
-            Logout
+          <Button variant="ghost" size="sm" onClick={logout}>
+            <span className="hidden sm:inline">Logout</span>
+            <span className="sm:hidden">🚪</span>
           </Button>
         </div>
       </div>
