@@ -87,6 +87,7 @@ export default function Page() {
   const [yearsLoading, setYearsLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
+  const [downloadType, setDownloadType] = useState<'pdf' | 'image'>('pdf');
   const [printMode, setPrintMode] = useState<'summary' | 'detail' | null>(null);
   const [selectedYearData, setSelectedYearData] = useState<YearSummaryData | null>(
     null
@@ -140,9 +141,10 @@ export default function Page() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Mobile PDF download function
-  const handleDownloadPdf = async (year?: string) => {
+  // Mobile download function
+  const handleDownloadPdf = async (year?: string, type: 'pdf' | 'image' = 'pdf') => {
     setDownloadingPdf(year || 'summary');
+    setDownloadType(type);
     try {
       const yearData = year ? yearSummaries.find(y => y.THN_PAJAK_SPPT === year) :
         yearSummaries.filter(y => !y.loading && !y.error)
@@ -164,17 +166,21 @@ export default function Page() {
         pbb_harus_dibayar: String(yearData?.PBB_YG_HARUS_DIBAYAR_SPPT || '0'),
         status_pembayaran: yearData?.STATUS_PEMBAYARAN_SPPT ? 'LUNAS' : 'BELUM LUNAS',
         tgl_jatuh_tempo: yearData?.TGL_JATUH_TEMPO_SPPT || '',
-        mobile: isMobile ? 'true' : 'false', // Add mobile flag
+        mobile: isMobile ? 'true' : 'false',
       });
+
+      const apiEndpoint = type === 'image' ? '/api/sppt/image' : '/api/sppt';
+      const fileExtension = type === 'image' ? 'png' : 'pdf';
+      const fileName = type === 'image' ? 'SPPT-Image' : 'SPPT';
 
       if (isMobile) {
         // Mobile: Use temporary file approach
-        const response = await fetch(`/api/sppt?${params.toString()}`);
+        const response = await fetch(`${apiEndpoint}?${params.toString()}`);
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('PDF generation failed:', errorText);
-          throw new Error(`Failed to generate PDF: ${response.status}`);
+          console.error(`${type.toUpperCase()} generation failed:`, errorText);
+          throw new Error(`Failed to generate ${type.toUpperCase()}: ${response.status}`);
         }
 
         const result = await response.json();
@@ -187,13 +193,13 @@ export default function Page() {
         }
       } else {
         // Desktop: direct download
-        const url = `/api/sppt?${params.toString()}`;
+        const url = `${apiEndpoint}?${params.toString()}`;
         const response = await fetch(url);
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('PDF generation failed:', errorText);
-          throw new Error(`Failed to generate PDF: ${response.status}`);
+          console.error(`${type.toUpperCase()} generation failed:`, errorText);
+          throw new Error(`Failed to generate ${type.toUpperCase()}: ${response.status}`);
         }
 
         const blob = await response.blob();
@@ -201,17 +207,18 @@ export default function Page() {
         const a = document.createElement('a');
         a.style.display = 'none';
         a.href = downloadUrl;
-        a.download = `SPPT-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.pdf`;
+        a.download = `${fileName}-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.${fileExtension}`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(downloadUrl);
         document.body.removeChild(a);
       }
     } catch (error) {
-      console.error('Error downloading PDF:', error);
+      console.error(`Error downloading ${downloadType}:`, error);
 
       // Show more specific error message
-      let errorMessage = 'Gagal mengunduh PDF. Silakan coba lagi.';
+      const formatName = downloadType === 'image' ? 'Gambar' : 'PDF';
+      let errorMessage = `Gagal mengunduh ${formatName}. Silakan coba lagi.`;
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch')) {
           errorMessage = 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
@@ -895,15 +902,28 @@ export default function Page() {
                         </CardDescription>
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      onClick={isMobile ? () => handleDownloadPdf() : handlePrint}
-                      disabled={isMobile && downloadingPdf === 'summary'}
-                      className="flex items-center gap-2 print:hidden"
-                    >
-                      {isMobile ? <Download className="h-4 w-4" /> : <Printer className="h-4 w-4" />}
-                      {isMobile ? (downloadingPdf === 'summary' ? 'Mengunduh...' : 'Unduh') : 'Cetak'}
-                    </Button>
+                    <div className="flex items-center gap-2 print:hidden">
+                      {isMobile && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDownloadType(downloadType === 'pdf' ? 'image' : 'pdf')}
+                          className="flex items-center gap-1"
+                        >
+                          {downloadType === 'pdf' ? '🖼️' : '📄'}
+                          {downloadType === 'pdf' ? 'PDF' : 'Gambar'}
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        onClick={isMobile ? () => handleDownloadPdf(undefined, downloadType) : handlePrint}
+                        disabled={isMobile && downloadingPdf === 'summary'}
+                        className="flex items-center gap-2"
+                      >
+                        {isMobile ? <Download className="h-4 w-4" /> : <Printer className="h-4 w-4" />}
+                        {isMobile ? (downloadingPdf === 'summary' ? 'Mengunduh...' : `Unduh ${downloadType === 'pdf' ? 'PDF' : 'Gambar'}`) : 'Cetak'}
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -1115,12 +1135,12 @@ export default function Page() {
                                       </TableCell>
                                       <TableCell>
                                         <Button
-                                          onClick={isMobile ? () => handleDownloadPdf(yearData.THN_PAJAK_SPPT) : () => handlePrintSppt(yearData.THN_PAJAK_SPPT)}
+                                          onClick={isMobile ? () => handleDownloadPdf(yearData.THN_PAJAK_SPPT, downloadType) : () => handlePrintSppt(yearData.THN_PAJAK_SPPT)}
                                           disabled={isMobile && downloadingPdf === yearData.THN_PAJAK_SPPT}
                                           className="print:hidden"
                                         >
                                           {isMobile ? <Download className="h-4 w-4" /> : <Printer className="h-4 w-4" />}
-                                          {isMobile ? (downloadingPdf === yearData.THN_PAJAK_SPPT ? 'Mengunduh...' : 'Unduh SPPT') : 'Cetak SPPT'}
+                                          {isMobile ? (downloadingPdf === yearData.THN_PAJAK_SPPT ? 'Mengunduh...' : `Unduh ${downloadType === 'pdf' ? 'PDF' : 'Gambar'}`) : 'Cetak SPPT'}
                                         </Button>
                                       </TableCell>
                                     </TableRow>
