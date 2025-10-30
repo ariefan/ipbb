@@ -37,6 +37,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Printer,
+  Download,
 } from "lucide-react";
 import {
   formatCurrency,
@@ -84,6 +85,8 @@ export default function Page() {
 
   const [yearSummaries, setYearSummaries] = useState<YearSummaryData[]>([]);
   const [yearsLoading, setYearsLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
   const [printMode, setPrintMode] = useState<'summary' | 'detail' | null>(null);
   const [selectedYearData, setSelectedYearData] = useState<YearSummaryData | null>(
     null
@@ -124,6 +127,65 @@ export default function Page() {
     loadCompleteData();
   }, [nop]);
 
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+      setIsMobile(isMobileDevice);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Mobile PDF download function
+  const handleDownloadPdf = async (year?: string) => {
+    setDownloadingPdf(year || 'summary');
+    try {
+      const yearData = year ? yearSummaries.find(y => y.THN_PAJAK_SPPT === year) :
+        yearSummaries.filter(y => !y.loading && !y.error)
+          .sort((a, b) => parseInt(b.THN_PAJAK_SPPT) - parseInt(a.THN_PAJAK_SPPT))[0];
+
+      if (!yearData && year) {
+        throw new Error('Year data not found');
+      }
+
+      const params = new URLSearchParams({
+        nop: nop,
+        year: year || yearData?.THN_PAJAK_SPPT || new Date().getFullYear().toString(),
+        name: objectInfo?.nama_wajib_pajak || yearData?.NM_WP_SPPT || '',
+        jln_wp: objectInfo?.alamat_wajib_pajak || '',
+        luas_bumi: String(objectInfo?.luas_bumi || yearData?.LUAS_BUMI_SPPT || ''),
+        luas_bng: String(objectInfo?.luas_bangunan || yearData?.LUAS_BNG_SPPT || ''),
+        njop_bumi: String(objectInfo?.njop_bumi || yearData?.NJOP_BUMI_SPPT || ''),
+        njop_bng: String(objectInfo?.njop_bangunan || yearData?.NJOP_BNG_SPPT || ''),
+        pbb_harus_dibayar: String(yearData?.PBB_YG_HARUS_DIBAYAR_SPPT || '0'),
+        status_pembayaran: yearData?.STATUS_PEMBAYARAN_SPPT ? 'LUNAS' : 'BELUM LUNAS',
+        tgl_jatuh_tempo: yearData?.TGL_JATUH_TEMPO_SPPT || '',
+      });
+
+      const response = await fetch(`/api/sppt?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to generate PDF');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `SPPT-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Gagal mengunduh PDF. Silakan coba lagi.');
+    } finally {
+      setDownloadingPdf(null);
+    }
+  };
 
   // Handle back to object selection
   const handleBackToObjects = () => {
@@ -794,11 +856,12 @@ export default function Page() {
                     </div>
                     <Button
                       variant="outline"
-                      onClick={handlePrint}
+                      onClick={isMobile ? () => handleDownloadPdf() : handlePrint}
+                      disabled={isMobile && downloadingPdf === 'summary'}
                       className="flex items-center gap-2 print:hidden"
                     >
-                      <Printer className="h-4 w-4" />
-                      Cetak
+                      {isMobile ? <Download className="h-4 w-4" /> : <Printer className="h-4 w-4" />}
+                      {isMobile ? (downloadingPdf === 'summary' ? 'Mengunduh...' : 'Unduh') : 'Cetak'}
                     </Button>
                   </div>
                 </CardHeader>
@@ -1010,9 +1073,13 @@ export default function Page() {
                                         )}
                                       </TableCell>
                                       <TableCell>
-                                        <Button onClick={() => handlePrintSppt(yearData.THN_PAJAK_SPPT)} className="print:hidden">
-                                          <Printer className="h-4 w-4" />
-                                          Cetak SPPT
+                                        <Button
+                                          onClick={isMobile ? () => handleDownloadPdf(yearData.THN_PAJAK_SPPT) : () => handlePrintSppt(yearData.THN_PAJAK_SPPT)}
+                                          disabled={isMobile && downloadingPdf === yearData.THN_PAJAK_SPPT}
+                                          className="print:hidden"
+                                        >
+                                          {isMobile ? <Download className="h-4 w-4" /> : <Printer className="h-4 w-4" />}
+                                          {isMobile ? (downloadingPdf === yearData.THN_PAJAK_SPPT ? 'Mengunduh...' : 'Unduh SPPT') : 'Cetak SPPT'}
                                         </Button>
                                       </TableCell>
                                     </TableRow>

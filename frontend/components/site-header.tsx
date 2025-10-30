@@ -1,5 +1,6 @@
 "use client"
 
+import { LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -36,9 +37,13 @@ export function SiteHeader({ title = "Document" }: SiteHeaderProps) {
         <h1 className="text-base font-medium">{title}</h1>
         <div className="ml-auto flex items-center gap-2">
           <ModeToggle />
-          <Button variant="ghost" size="sm" onClick={logout}>
-            <span className="hidden sm:inline">Logout</span>
-            <span className="sm:hidden">🚪</span>
+          <Button variant="ghost" size="icon" onClick={logout} className="hidden sm:flex">
+            <LogOut className="h-4 w-4" />
+            <span className="sr-only">Logout</span>
+          </Button>
+          <Button variant="outline" size="icon" onClick={logout} className="sm:hidden">
+            <LogOut className="h-4 w-4" />
+            <span className="sr-only">Logout</span>
           </Button>
         </div>
       </div>
