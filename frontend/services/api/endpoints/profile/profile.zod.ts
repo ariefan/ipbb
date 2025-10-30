@@ -29,9 +29,4 @@ export const profileGetMyProfileResponse = zod.object({
   "EMAIL_WP": zod.string().or(zod.null()).optional()
 }).describe('Response model for dat_subjek_pajak data')
 
-/**
- * Toggle current user's admin status
- * @summary Toggle Admin
- */
-export const profileToggleAdminResponse = zod.any()
 
