@@ -1,7 +1,7 @@
 "use client"
 
 import { useOpGetAllSpop } from "@/services/api/endpoints/op/op"
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Pagination,
   PaginationContent,
@@ -20,10 +20,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { useDebounce } from "@/hooks/use-debounce"
 import { useState } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
 import type { SpopResponse } from "@/services/api/models"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -139,7 +137,7 @@ export default function OpTablePage() {
                     )}
                     {!isLoading &&
                       !error &&
-                      data?.data?.map((item: SpopResponse, i: number) => (
+                      data?.data?.map((item: SpopResponse) => (
                         <TableRow
                           key={getNop(item)}
                           className="cursor-pointer"
@@ -165,7 +163,7 @@ export default function OpTablePage() {
                   </PaginationItem>
 
                   {Array.from({ length: totalPages }, (_, i) => (
-                    <PaginationItem key={page}>
+                    <PaginationItem key={i + 1}>
                       <PaginationLink
                         href="#"
                         isActive={i + 1 === page}

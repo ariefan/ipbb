@@ -1,13 +1,14 @@
 /* Print-specific styles for SPPT */
 @media print {
   @page {
-    margin: 1cm;
+    margin: 0.5cm;
     size: A4;
   }
 
   body {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+    font-size: 12px;
   }
 
   .print\\:hidden {
@@ -15,23 +16,23 @@
   }
 
   .print\\:p-4 {
-    padding: 1rem !important;
+    padding: 0.5rem !important;
   }
 
   .print\\:mb-4 {
-    margin-bottom: 1rem !important;
+    margin-bottom: 0.75rem !important;
   }
 
   .print\\:mb-6 {
-    margin-bottom: 1.5rem !important;
+    margin-bottom: 1rem !important;
   }
 
   .print\\:mt-2 {
-    margin-top: 0.5rem !important;
+    margin-top: 0.25rem !important;
   }
 
   .print\\:mt-6 {
-    margin-top: 1.5rem !important;
+    margin-top: 1rem !important;
   }
 
   /* Ensure cards have borders in print */
@@ -42,5 +43,48 @@
   /* Force black text for better readability */
   .print\\:text-black {
     color: #000000 !important;
+  }
+
+  /* Print-specific grid adjustments */
+  .grid-cols-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+  }
+
+  .grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  /* Smaller text for better fit on mobile print */
+  .text-sm {
+    font-size: 0.75rem !important;
+  }
+
+  .text-lg {
+    font-size: 1rem !important;
+  }
+
+  .text-xl {
+    font-size: 1.125rem !important;
+  }
+
+  .text-2xl {
+    font-size: 1.25rem !important;
+  }
+
+  /* Reduce padding in cards for print */
+  .card {
+    padding: 0.5rem !important;
+  }
+
+  .card-header {
+    padding: 0.25rem 0.5rem !important;
+  }
+
+  .card-content {
+    padding: 0.5rem !important;
   }
 }
