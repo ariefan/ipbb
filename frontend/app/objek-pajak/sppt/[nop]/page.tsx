@@ -166,48 +166,73 @@ export default function Page() {
         tgl_jatuh_tempo: yearData?.TGL_JATUH_TEMPO_SPPT || '',
       });
 
-      const response = await fetch(`/api/sppt?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to generate PDF');
+      const url = `/api/sppt?${params.toString()}`;
 
-      const blob = await response.blob();
-
-      // Mobile-friendly approach: open in new tab for mobile browsers
       if (isMobile) {
-        // For mobile browsers, open PDF in new tab
-        const url = window.URL.createObjectURL(blob);
-        const newWindow = window.open(url, '_blank');
+        // For Android Chrome: try iframe approach first
+        try {
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = url;
+          document.body.appendChild(iframe);
 
-        // Fallback: if window.open fails, try direct download
-        if (!newWindow) {
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = url;
-          a.target = '_blank'; // Open in new tab
-          a.download = `SPPT-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
+          // Remove iframe after some time
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+          }, 5000);
+
+        } catch (iframeError) {
+          console.error('Iframe approach failed:', iframeError);
+
+          // Fallback 1: Direct window.location (same tab)
+          try {
+            window.location.href = url;
+          } catch (locationError) {
+            console.error('Window.location approach failed:', locationError);
+
+            // Fallback 2: window.open with same target
+            const newWindow = window.open(url, '_self');
+            if (!newWindow) {
+              throw new Error('All mobile download methods failed');
+            }
+          }
+        }
+      } else {
+        // Desktop: fetch and download
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('PDF generation failed:', errorText);
+          throw new Error(`Failed to generate PDF: ${response.status}`);
         }
 
-        // Clean up after a delay
-        setTimeout(() => {
-          window.URL.revokeObjectURL(url);
-        }, 100);
-      } else {
-        // Desktop approach: direct download
-        const url = window.URL.createObjectURL(blob);
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
-        a.href = url;
+        a.href = downloadUrl;
         a.download = `SPPT-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.pdf`;
         document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(url);
+        window.URL.revokeObjectURL(downloadUrl);
         document.body.removeChild(a);
       }
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      alert('Gagal mengunduh PDF. Silakan coba lagi.');
+
+      // Show more specific error message
+      let errorMessage = 'Gagal mengunduh PDF. Silakan coba lagi.';
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
+        } else if (error.message.includes('500')) {
+          errorMessage = 'Terjadi kesalahan di server. Silakan coba lagi nanti.';
+        } else if (error.message.includes('All mobile download methods failed')) {
+          errorMessage = 'Browser tidak mendukung unduhan PDF. Silakan gunakan browser lain atau coba di desktop.';
+        }
+      }
+
+      alert(errorMessage);
     } finally {
       setDownloadingPdf(null);
     }
