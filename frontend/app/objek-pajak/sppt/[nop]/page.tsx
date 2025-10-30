@@ -170,15 +170,41 @@ export default function Page() {
       if (!response.ok) throw new Error('Failed to generate PDF');
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `SPPT-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+
+      // Mobile-friendly approach: open in new tab for mobile browsers
+      if (isMobile) {
+        // For mobile browsers, open PDF in new tab
+        const url = window.URL.createObjectURL(blob);
+        const newWindow = window.open(url, '_blank');
+
+        // Fallback: if window.open fails, try direct download
+        if (!newWindow) {
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.target = '_blank'; // Open in new tab
+          a.download = `SPPT-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+
+        // Clean up after a delay
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+        }, 100);
+      } else {
+        // Desktop approach: direct download
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `SPPT-${year || yearData?.THN_PAJAK_SPPT || 'Summary'}-${nop.replace(/\./g, '')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
     } catch (error) {
       console.error('Error downloading PDF:', error);
       alert('Gagal mengunduh PDF. Silakan coba lagi.');
