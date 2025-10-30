@@ -130,27 +130,48 @@ export default function Page() {
     router.push("/objek-pajak/sppt");
   };
 
-  // Handle print summary (Cetak button)
-  const handlePrint = () => {
-    setPrintMode('summary');
-    setTimeout(() => {
-      window.print();
+  // 1) Tambah util ini di atas komponen
+  const nextFrame = () =>
+    new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+
+  // 2) Tambah cleanup untuk reset state setelah print
+  useEffect(() => {
+    const after = () => {
       setPrintMode(null);
-    }, 100);
+      setSelectedYearData(null);
+    };
+    window.addEventListener("afterprint", after);
+
+    // Fallback untuk Android yang kadang pakai matchMedia
+    const mql = window.matchMedia("print");
+    const onMMChange = (e: MediaQueryListEvent) => {
+      if (!e.matches) after();
+    };
+    mql.addEventListener?.("change", onMMChange);
+
+    return () => {
+      window.removeEventListener("afterprint", after);
+      mql.removeEventListener?.("change", onMMChange);
+    };
+  }, []);
+
+  // Handle print summary (Cetak button)
+  const handlePrint = async () => {
+    setPrintMode("summary");
+    await nextFrame(); // pastikan DOM print-only sudah dipaint
+    window.print();
   };
 
   // Handle print SPPT for specific year (Cetak SPPT button)
-  const handlePrintSppt = (year: string) => {
-    const yearData = yearSummaries.find(y => y.THN_PAJAK_SPPT === year);
-    if (yearData && !yearData.loading && !yearData.error) {
-      setSelectedYearData(yearData);
-      setPrintMode('detail');
-      setTimeout(() => {
-        window.print();
-        setPrintMode(null);
-        setSelectedYearData(null);
-      }, 100);
-    }
+  const handlePrintSppt = async (year: string) => {
+    const yearData = yearSummaries.find((y) => y.THN_PAJAK_SPPT === year);
+    if (!yearData || yearData.loading || yearData.error) return;
+    setSelectedYearData(yearData);
+    setPrintMode("detail");
+    await nextFrame(); // sama
+    window.print();
   };
 
   // Calculate Denda (penalty) based on MySQL function logic
@@ -639,26 +660,25 @@ export default function Page() {
       >
         <AppSidebar user={sidebarUser} variant="inset" />
         <SidebarInset>
-          <SiteHeader title="SPPT - Pilih Tahun Pajak" />
+          <div className="print:hidden" data-role="site-header">
+            <SiteHeader title="SPPT - Pilih Tahun Pajak" />
+          </div>
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-4 p-4 screen-only">
-              {/* Print Title - Only visible when printing */}
-              <div className="hidden print:block mb-8 text-center">
-                <h1 className="text-2xl font-bold mb-2">REKAPITULASI SURAT PEMBERITAHUAN PAJAK TERHUTANG</h1>
-                <h2 className="text-xl font-semibold mb-2">PAJAK BUMI DAN BANGUNAN</h2>
-                <div className="text-lg font-semibold mb-4">
-                  NOP: {formatNop(nop)}
-                </div>
-                <div className="text-sm mb-6 border-t border-b border-black py-2">
-                  Dicetak pada: {new Date().toLocaleDateString('id-ID', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </div>
+              <h1 className="text-2xl font-bold mb-2">REKAPITULASI SURAT PEMBERITAHUAN PAJAK TERHUTANG</h1>
+              <h2 className="text-xl font-semibold mb-2">PAJAK BUMI DAN BANGUNAN</h2>
+              <div className="text-lg font-semibold mb-4">
+                NOP: {formatNop(nop)}
+              </div>
+              <div className="text-sm mb-6 border-t border-b border-black py-2">
+                Dicetak pada: {new Date().toLocaleDateString('id-ID', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
               </div>
 
               {/* Breadcrumb/Property Info */}
